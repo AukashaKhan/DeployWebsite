@@ -1,0 +1,33 @@
+name: Publish site from main
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read       # for checkout
+  pages: write         # to configure & publish Pages
+  id-token: write      # needed by configure-pages
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v3
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: .        # deploy everything at repo root (must include index.html)
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v2
+
+      - name: Print site URL
+        run: echo "Your site is live at ${{ steps.deploy.outputs.page_url }}"
