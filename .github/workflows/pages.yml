@@ -1,33 +1,57 @@
-name: Publish site from main
+# File: .github/workflows/deploy.yml
+name: Deploy static site manually
 
 on:
   push:
     branches: [ main ]
 
-permissions:
-  contents: read       # for checkout
-  pages: write         # to configure & publish Pages
-  id-token: write      # needed by configure-pages
-
 jobs:
-  publish:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
+      # 1️⃣ Check out your repo (full history so we can switch branches)
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v3
-
-      - name: Upload site artifact
-        uses: actions/upload-pages-artifact@v1
         with:
-          path: .        # deploy everything at repo root (must include index.html)
+          fetch-depth: 0       # full history
+          persist-credentials: true  # allow push via GITHUB_TOKEN
 
-      - name: Deploy to GitHub Pages
-        id: deploy
-        uses: actions/deploy-pages@v2
+      # 2️⃣ Configure git for the bot
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Print site URL
-        run: echo "Your site is live at ${{ steps.deploy.outputs.page_url }}"
+      # 3️⃣ Build your site (skip if plain HTML)
+      #    e.g. npm install && npm run build
+      #- name: Build
+      #  run: npm ci && npm run build
+
+      # 4️⃣ Create (or overwrite) the gh-pages branch
+      - name: Deploy to gh-pages
+        run: |
+          # If gh-pages exists, delete it locally
+          git branch -D gh-pages || true
+
+          # Create an orphan branch named gh-pages
+          git checkout --orphan gh-pages
+
+          # Remove any old files from the index
+          git rm -rf .
+
+          # Copy all files from main into this branch
+          cp -R $GITHUB_WORKSPACE/* .
+
+          # (Optional) If you don’t want your workflow YAML published:
+          rm -rf .github
+
+          # Commit and push
+          git add .
+          git commit -m "Deploy from main: $GITHUB_SHA"
+          git push --force origin gh-pages
+
+      # 5️⃣ Print out the URL for quick reference
+      - name: Print GitHub Pages URL
+        run: |
+          echo "🎉 Your site should be live at:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
