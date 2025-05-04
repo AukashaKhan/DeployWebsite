@@ -1,4 +1,5 @@
-name: Deploy HTML to GitHub Pages (No v3 Errors)
+# .github/workflows/deploy.yml
+name: Deploy static site manually
 
 on:
   push:
@@ -7,12 +8,58 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+    steps:
+      - name: Checkout main (full history)
+        uses: actions/checkout@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .  # your root directory (where index.html is)
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Copy files to temp folder
+        run: |
+          mkdir temp-deploy
+          rsync -av --exclude='.git' --exclude='.github' . temp-deploy/
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create gh-pages branch
+        run: |
+          git branch -D gh-pages || true
+          git checkout --orphan gh-pages
+          git rm -rf .
+
+      - name: Copy site into branch
+        run: |
+          rsync -av temp-deploy/ .
+
+      - name: Commit and push
+        run: |
+          git add .
+          git commit -m "Deploy from main: $GITHUB_SHA"
+          git push --force origin gh-pages
+
+      # ─── DEBUG STEPS ───────────────────────────────────────────────────────────
+
+      - name: Checkout freshly pushed gh-pages for debugging
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository }}
+          ref: gh-pages
+          path: ghpages-debug
+
+      - name: List contents of gh-pages
+        run: |
+          echo "=== gh-pages branch contents ==="
+          ls -R ghpages-debug
+
+      - name: Show index.html deployed
+        run: |
+          echo "=== index.html ==="
+          cat ghpages-debug/index.html
+
+      - name: Print final URL
+        run: echo "Your site should be at https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
