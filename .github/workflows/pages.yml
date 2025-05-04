@@ -1,4 +1,4 @@
-# File: .github/workflows/deploy.yml
+# .github/workflows/deploy.yml
 name: Deploy static site manually
 
 on:
@@ -8,49 +8,47 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      # 1️⃣ Check out your repo (full history so we can switch branches)
+      # 1️⃣ Checkout your repo (full history)
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0       # full history
-          persist-credentials: true  # allow push via GITHUB_TOKEN
+          fetch-depth: 0               # Get all branches & history
+          persist-credentials: true    # So we can push back
 
-      # 2️⃣ Configure git for the bot
+      # 2️⃣ Save current files (exclude .git and CI config)
+      - name: Copy files to temp folder
+        run: |
+          mkdir temp-deploy
+          rsync -av --exclude='.git' --exclude='.github' . temp-deploy/
+
+      # 3️⃣ Configure git user
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 3️⃣ Build your site (skip if plain HTML)
-      #    e.g. npm install && npm run build
-      #- name: Build
-      #  run: npm ci && npm run build
-
-      # 4️⃣ Create (or overwrite) the gh-pages branch
-      - name: Deploy to gh-pages
+      # 4️⃣ Switch to orphan gh-pages branch
+      - name: Create gh-pages branch
         run: |
-          # If gh-pages exists, delete it locally
           git branch -D gh-pages || true
-
-          # Create an orphan branch named gh-pages
           git checkout --orphan gh-pages
+          git rm -rf .                # remove all old files
 
-          # Remove any old files from the index
-          git rm -rf .
+      # 5️⃣ Copy back the saved site
+      - name: Copy site into branch
+        run: |
+          rsync -av temp-deploy/ .
 
-          # Copy all files from main into this branch
-          cp -R $GITHUB_WORKSPACE/* .
-
-          # (Optional) If you don’t want your workflow YAML published:
-          rm -rf .github
-
-          # Commit and push
+      # 6️⃣ Commit & push
+      - name: Commit and push
+        run: |
           git add .
           git commit -m "Deploy from main: $GITHUB_SHA"
           git push --force origin gh-pages
 
-      # 5️⃣ Print out the URL for quick reference
+      # 7️⃣ Show URL
       - name: Print GitHub Pages URL
         run: |
           echo "🎉 Your site should be live at:"
